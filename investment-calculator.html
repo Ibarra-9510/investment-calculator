@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .chart-container {
+      width: 100%;
+      height: 300px;
+      margin-top: 20px;
+    }
+
+    .chart-bar {
+      fill: #1f8ef1;
+    }
+
+    .chart-bar.projected-gain {
+      fill: #2ecc71;
+    }
+
+    .flex-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .value-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .value-container span {
+      margin: 0 10px;
+    }
+
+    .button-container button {
+      padding: 5px 10px;
+      font-size: 16px;
+    }
+
+    .radio-container {
+      margin-top: 10px;
+    }
+
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.5rem;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      font-size: 0.8rem;
+      border-radius: 4px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease-in-out;
+      white-space: nowrap;
+    }
+
+    .tooltip:hover::after {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+<hr>
+  <div class="container">
+
+    <div class="flex-container">
+      <div>*Projected Investment Value:</div>
+      <div class="value-container">
+        <span id="projectedInvestmentValue">P0.00</span>
+      </div>
+    </div>
+<hr>
+    <div class="chart-container">
+      <svg id="chart" width="100%" height="100%"></svg>
+    </div>
+<hr>
+    <div class="flex-container">
+      <div>Initial Investment:</div>
+      <div class="value-container">
+        <button id="decrementInitialInvestmentBtn">-</button>
+        <input id="initialInvestmentInput" type="number" value="1000" min="0" step="1000">
+        <button id="incrementInitialInvestmentBtn">+</button>
+      </div>
+    </div>
+
+    <div class="flex-container">
+      <div>Additional Investment:</div>
+      <div class="value-container">
+        <button id="decrementAdditionalInvestmentBtn">-</button>
+        <input id="additionalInvestmentInput" type="number" value="500" min="0" step="1000">
+        <button id="incrementAdditionalInvestmentBtn">+</button>
+      </div>
+    </div>
+
+    <div class="flex-container">
+      <div>How often will you add?</div>
+      <div class="radio-container">
+        <label>
+          <input type="radio" name="investmentFrequency" value="monthly" checked> Monthly
+        </label>
+        <label>
+          <input type="radio" name="investmentFrequency" value="quarterly"> Quarterly
+        </label>
+        <label>
+          <input type="radio" name="investmentFrequency" value="annually"> Annually
+        </label>
+      </div>
+    </div>
+
+    <div class="flex-container">
+      <div>What is your risk profile?</div>
+      <div class="radio-container">
+        <label>
+          <input type="radio" name="riskProfile" value="aggressive" checked> Aggressive
+        </label>
+        <label>
+          <input type="radio" name="riskProfile" value="moderate"> Moderate
+        </label>
+        <label>
+          <input type="radio" name="riskProfile" value="conservative"> Conservative
+        </label>
+      </div>
+    </div>
+
+    <div class="flex-container">
+      <div>How long do you plan to invest?</div>
+      <div>
+        <span id="yearsValue">5</span> years
+      </div>
+    </div>
+
+    <input id="yearsSlider" type="range" min="1" max="50" value="5">
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+<hr>
+  <script>
+    const initialInvestmentInput = document.getElementById("initialInvestmentInput");
+    const additionalInvestmentInput = document.getElementById("additionalInvestmentInput");
+    const incrementInitialInvestmentBtn = document.getElementById("incrementInitialInvestmentBtn");
+    const decrementInitialInvestmentBtn = document.getElementById("decrementInitialInvestmentBtn");
+    const incrementAdditionalInvestmentBtn = document.getElementById("incrementAdditionalInvestmentBtn");
+    const decrementAdditionalInvestmentBtn = document.getElementById("decrementAdditionalInvestmentBtn");
+    const yearsSlider = document.getElementById("yearsSlider");
+    const yearsValue = document.getElementById("yearsValue");
+    const projectedInvestmentValue = document.getElementById("projectedInvestmentValue");
+    const chart = document.getElementById("chart");
+    const investmentFrequencyRadios = document.querySelectorAll("input[name='investmentFrequency']");
+    const tooltip = document.getElementById("tooltip");
+
+    function updateInvestmentData() {
+      const initialInvestment = parseFloat(initialInvestmentInput.value);
+      const additionalInvestment = parseFloat(additionalInvestmentInput.value);
+      const investmentFrequency = document.querySelector("input[name='investmentFrequency']:checked").value;
+      const riskProfile = document.querySelector("input[name='riskProfile']:checked").value;
+      const years = parseInt(yearsSlider.value);
+
+      let investmentValue = initialInvestment;
+      let barData = [];
+
+      for (let i = 1; i <= years; i++) {
+        const growthRate = calculateGrowthRate(riskProfile);
+        const investmentFrequencyMultiplier = calculateInvestmentFrequencyMultiplier(investmentFrequency);
+        const totalInvestmentCost = initialInvestment + ((additionalInvestment * investmentFrequencyMultiplier) * i);
+        const projectedGain = investmentValue * growthRate;
+        investmentValue += projectedGain + totalInvestmentCost;
+        barData.push({
+          totalInvestmentCost,
+          projectedGain
+        });
+      }
+
+      renderChart(barData);
+      const projectedInvestment = barData[barData.length - 1].totalInvestmentCost + barData[barData.length - 1].projectedGain;
+      projectedInvestmentValue.textContent = formatCurrency(projectedInvestment);
+    }
+
+    function calculateGrowthRate(riskProfile) {
+      switch (riskProfile) {
+        case "aggressive":
+          return 0.15;
+        case "moderate":
+          return 0.10;
+        case "conservative":
+          return 0.05;
+        default:
+          return 0;
+      }
+    }
+
+    function calculateInvestmentFrequencyMultiplier(investmentFrequency) {
+      switch (investmentFrequency) {
+        case "monthly":
+          return 12;
+        case "quarterly":
+          return 4;
+        case "annually":
+          return 1;
+        default:
+          return 0;
+      }
+    }
+
+    function formatCurrency(value) {
+      return "P" + value.toFixed(2);
+    }
+
+    function renderChart(data) {
+      chart.innerHTML = "";
+
+      const chartWidth = chart.clientWidth;
+      const chartHeight = chart.clientHeight;
+      const barWidth = chartWidth / data.length;
+      const maxValue = Math.max(...data.map(entry => entry.totalInvestmentCost + entry.projectedGain));
+
+      for (let i = 0; i < data.length; i++) {
+        const entry = data[i];
+        const totalInvestmentCostBarHeight = (entry.totalInvestmentCost / maxValue) * chartHeight;
+        const projectedGainBarHeight = (entry.projectedGain / maxValue) * chartHeight;
+
+        const x = i * barWidth;
+        const y = chartHeight - (totalInvestmentCostBarHeight + projectedGainBarHeight);
+
+        const projectedGainBar = createBar(x, y, barWidth, projectedGainBarHeight, "chart-bar projected-gain", "Total Projected Gain: " + formatCurrency(entry.projectedGain));
+        chart.appendChild(projectedGainBar);
+
+        const totalInvestmentCostBar = createBar(x, y + projectedGainBarHeight, barWidth, totalInvestmentCostBarHeight, "chart-bar", "Total Investment Cost: " + formatCurrency(entry.totalInvestmentCost));
+        chart.appendChild(totalInvestmentCostBar);
+      }
+    }
+
+    function createBar(x, y, width, height, className, tooltipText) {
+      const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      bar.setAttribute("x", x);
+      bar.setAttribute("y", y);
+      bar.setAttribute("width", width);
+      bar.setAttribute("height", height);
+      bar.setAttribute("class", className);
+
+      // Add tooltip
+      bar.addEventListener("mouseover", () => {
+        tooltip.textContent = tooltipText;
+        tooltip.style.display = "block";
+        tooltip.style.left = x + 100 + "px";
+        tooltip.style.bottom = (chart.clientHeight - y + chart.clientHeight + 60) + "px";
+      });
+      bar.addEventListener("mouseout", () => {
+        tooltip.style.display = "none";
+      });
+
+      return bar;
+    }
+
+    function handleInitialInvestmentChange(increment) {
+      let value = parseFloat(initialInvestmentInput.value);
+      value += increment;
+      if (value < 0) value = 0;
+      initialInvestmentInput.value = value;
+      updateInvestmentData();
+    }
+
+    function handleAdditionalInvestmentChange(increment) {
+      let value = parseFloat(additionalInvestmentInput.value);
+      value += increment;
+      if (value < 0) value = 0;
+      additionalInvestmentInput.value = value;
+      updateInvestmentData();
+    }
+
+    initialInvestmentInput.addEventListener("change", updateInvestmentData);
+    additionalInvestmentInput.addEventListener("change", updateInvestmentData);
+    incrementInitialInvestmentBtn.addEventListener("click", () => handleInitialInvestmentChange(1000));
+    decrementInitialInvestmentBtn.addEventListener("click", () => handleInitialInvestmentChange(-1000));
+    incrementAdditionalInvestmentBtn.addEventListener("click", () => handleAdditionalInvestmentChange(1000));
+    decrementAdditionalInvestmentBtn.addEventListener("click", () => handleAdditionalInvestmentChange(-1000));
+    yearsSlider.addEventListener("input", () => {
+      yearsValue.textContent = yearsSlider.value;
+      updateInvestmentData();
+    });
+    investmentFrequencyRadios.forEach(radio => {
+      radio.addEventListener("change", updateInvestmentData);
+    });
+    document.querySelectorAll("input[name='riskProfile']").forEach(radio => {
+      radio.addEventListener("change", updateInvestmentData);
+    });
+
+    updateInvestmentData();
+  </script>
+</body>
+</html>
